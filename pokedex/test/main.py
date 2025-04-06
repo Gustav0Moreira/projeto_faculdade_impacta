@@ -478,7 +478,7 @@ class PokedexApp:
                 pady=5
             ).pack(side="left", padx=5)
         
-        ### Atualiza as estatísticas
+        """### Atualiza as estatísticas
         for widget in self.stats_frame.winfo_children():
             widget.destroy()
             
@@ -547,7 +547,7 @@ class PokedexApp:
             master=self.size_frame,
             text=f"Peso: {pokemon['weight']} kg",
             font=("Roboto", 14)
-        ).pack(side="left", padx=10)
+        ).pack(side="left", padx=10)"""
 
     def get_type_color(self, type_name):
         """retorna a cor associada ao tipo de pokémon"""
