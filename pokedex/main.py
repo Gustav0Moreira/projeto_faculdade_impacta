@@ -38,6 +38,8 @@ class PokedexApp:
         self.favorites = set()  # Conjunto de favoritos
         self.theme = "dark"  # Tema padrão
         self.color_theme = "dark-blue"  # Tema de cores padrão
+        self.history = []  # Histórico de Pokémon visualizados
+        self.max_history = 10  # Número máximo de itens no histórico
         self.load_config()  # Carrega as configurações
         self.setup_window()  # Configura a janela
         self.load_data()  # Carrega os dados dos pokémons
@@ -51,7 +53,8 @@ class PokedexApp:
             "window_size": [800, 800],
             "theme": "dark",
             "color_theme": "dark-blue",
-            "favorites": []
+            "favorites": [],
+            "history": []
         }
         
         try:
@@ -62,12 +65,14 @@ class PokedexApp:
                 self.theme = config.get("theme", defaults["theme"])
                 self.color_theme = config.get("color_theme", defaults["color_theme"])
                 self.favorites = set(config.get("favorites", defaults["favorites"]))
+                self.history = config.get("history", defaults["history"])
         except (FileNotFoundError, json.JSONDecodeError):
             # Se houver erro, usa as configurações padrão
             self.window_size = defaults["window_size"]
             self.theme = defaults["theme"]
             self.color_theme = defaults["color_theme"]
             self.favorites = set(defaults["favorites"])
+            self.history = defaults["history"]
 
     def save_config(self):
         """Salva a configuração atual no arquivo"""
@@ -75,7 +80,8 @@ class PokedexApp:
             "window_size": self.window_size,
             "theme": self.theme,
             "color_theme": self.color_theme,
-            "favorites": list(self.favorites)
+            "favorites": list(self.favorites),
+            "history": self.history[-self.max_history:]  # Salva apenas os últimos itens
         }
         
         try:
@@ -247,6 +253,23 @@ class PokedexApp:
         )
         color_menu.pack()
         
+        # Configuração do histórico
+        ctk.CTkLabel(settings, text="Tamanho do Histórico:", font=("Roboto", 14)).pack(pady=(20, 5))
+        history_var = ctk.IntVar(value=self.max_history)
+        history_spin = ctk.CTkEntry(
+            settings,
+            textvariable=history_var,
+            width=100
+        )
+        history_spin.pack()
+        
+        # Botão para aplicar configuração do histórico
+        ctk.CTkButton(
+            settings,
+            text="Aplicar",
+            command=lambda: self.set_history_size(history_var.get())
+        ).pack(pady=5)
+        
         # Botão para limpar cache
         ctk.CTkButton(
             settings,
@@ -262,6 +285,18 @@ class PokedexApp:
             text="Fechar",
             command=settings.destroy
         ).pack(pady=10)
+
+    def set_history_size(self, size):
+        """Define o tamanho máximo do histórico"""
+        if 5 <= size <= 20:  # Limites razoáveis
+            self.max_history = size
+            # Remove itens excedentes se necessário
+            if len(self.history) > self.max_history:
+                self.history = self.history[-self.max_history:]
+            self.save_config()
+            messagebox.showinfo("Sucesso", f"Tamanho do histórico definido para {size} itens")
+        else:
+            messagebox.showerror("Erro", "O tamanho do histórico deve estar entre 5 e 20")
 
     def change_theme(self, new_theme):
         """Altera o tema do aplicativo"""
@@ -295,12 +330,20 @@ class PokedexApp:
         self.pokedex_frame.pack(fill="both", expand=True)
         
         # Painel esquerdo - Exibição do pokémon
-        self.left_panel = ctk.CTkFrame(master=self.pokedex_frame, width=400)
+        self.left_panel = ctk.CTkFrame(master=self.pokedex_frame, width=300)
         self.left_panel.pack(side="left", fill="both", expand=True)
         
-        # Painel direito - Lista de pokémons
+        # Painel central - Lista de pokémons
         self.right_panel = ctk.CTkScrollableFrame(master=self.pokedex_frame, width=400)
-        self.right_panel.pack(side="right", fill="both", expand=True)
+        self.right_panel.pack(side="left", fill="both", expand=True)
+        
+        # Painel direito - Histórico
+        self.history_panel = ctk.CTkFrame(master=self.pokedex_frame, width=200)
+        self.history_panel.pack(side="right", fill="y")
+        
+        # Frame do histórico
+        self.history_frame = ctk.CTkScrollableFrame(master=self.history_panel)
+        self.history_frame.pack(fill="both", expand=True, padx=5, pady=5)
         
         # Botão de voltar
         self.back_button = ctk.CTkButton(
@@ -406,8 +449,39 @@ class PokedexApp:
         # Cria os botões da lista de pokémons
         self.create_pokemon_list()
         
+        # Atualiza a lista de histórico
+        self.update_history_list()
+        
         # Mostra o primeiro pokémon
         self.show_pokemon(1)
+
+    def update_history_list(self):
+        """Atualiza a lista de histórico na interface"""
+        if hasattr(self, 'history_frame'):
+            for widget in self.history_frame.winfo_children():
+                widget.destroy()
+            
+            ctk.CTkLabel(
+                master=self.history_frame,
+                text="Histórico:",
+                font=("Roboto", 14, "bold")
+            ).pack(pady=(5, 10))
+            
+            # Mostra os itens do histórico em ordem reversa (mais recente primeiro)
+            for pokemon_id in reversed(self.history):
+                pokemon = self.pk_db[pokemon_id]
+                btn = ctk.CTkButton(
+                    master=self.history_frame,
+                    text=f"{pokemon['name']} #{pokemon_id}",
+                    command=lambda id=pokemon_id: self.show_pokemon(id),
+                    font=("Roboto", 12),
+                    fg_color="gray30",
+                    hover_color="gray40",
+                    width=180,
+                    height=30,
+                    corner_radius=5
+                )
+                btn.pack(pady=2)
 
     def create_pokemon_list(self):
         """Cria botões para todos os pokémons na lista"""
@@ -439,6 +513,14 @@ class PokedexApp:
             pokemon_id = 1
         elif pokemon_id > len(self.pk_db):
             pokemon_id = len(self.pk_db)
+        
+        # Adiciona ao histórico (se não for o mesmo Pokémon)
+        if not self.history or self.history[-1] != pokemon_id:
+            self.history.append(pokemon_id)
+            # Mantém apenas os últimos max_history itens
+            if len(self.history) > self.max_history:
+                self.history.pop(0)
+            self.update_history_list()
         
         self.current_pokemon = pokemon_id
         pokemon = self.pk_db[pokemon_id]
@@ -548,6 +630,9 @@ class PokedexApp:
             text=f"Peso: {pokemon['weight']} kg",
             font=("Roboto", 14)
         ).pack(side="left", padx=10)
+        
+        # Salva as configurações (incluindo histórico)
+        self.save_config()
 
     def get_type_color(self, type_name):
         """retorna a cor associada ao tipo de pokémon"""
@@ -624,4 +709,4 @@ class PokedexApp:
         self.setup_main_screen()
 
 if __name__ == "__main__":
-    PokedexApp()  
+    PokedexApp()

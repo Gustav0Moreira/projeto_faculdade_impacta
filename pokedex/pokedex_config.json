@@ -5,5 +5,8 @@
     ],
     "theme": "dark",
     "color_theme": "blue",
-    "favorites": []
+    "favorites": [],
+    "history": [
+        1
+    ]
 }
