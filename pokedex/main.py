@@ -13,11 +13,12 @@ try:
     import pickle
     import webbrowser
     import json
+    from openpyxl import Workbook
     print("Todos os módulos encontrados")
 except ModuleNotFoundError as e:
     # Se algum módulo não for encontrado, instalar automaticamente
     print(f"Módulo não encontrado: {e}. Tentando instalar...")
-    pip.main(["install", "customtkinter", "requests", "pillow"])
+    pip.main(["install", "customtkinter", "requests", "pillow", "openpyxl"])
     # Reiniciar o script após a instalação
     os.execv(sys.executable, ['python'] + sys.argv)
 
@@ -410,6 +411,20 @@ class PokedexApp:
         )
         self.fav_button.pack(side="left", padx=5)
         
+        # Botão de exportar para Excel
+        self.export_button = ctk.CTkButton(
+            master=self.left_panel,
+            command=self.export_to_excel,
+            text="Exportar para Excel",
+            font=("Roboto", 14),
+            width=150,
+            height=30,
+            corner_radius=10,
+            fg_color="green",
+            hover_color="darkgreen"
+        )
+        self.export_button.place(relx=0.95, rely=0.05, anchor="ne")
+        
         # Imagem do pokémon
         self.pokemon_image = ctk.CTkLabel(master=self.left_panel, text="")
         self.pokemon_image.place(relx=0.5, rely=0.25, anchor="n")
@@ -454,6 +469,53 @@ class PokedexApp:
         
         # Mostra o primeiro pokémon
         self.show_pokemon(1)
+
+    def export_to_excel(self):
+        """Exporta os dados dos pokémons para um arquivo Excel"""
+        try:
+            # Cria um novo workbook e seleciona a planilha ativa
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "Pokédex Data"
+            
+            # Cabeçalhos
+            headers = [
+                "ID", "Nome", "Tipos", "HP", "Ataque", "Defesa", 
+                "Ataque Especial", "Defesa Especial", "Velocidade",
+                "Altura (m)", "Peso (kg)", "Taxa de Captura", "Favorito"
+            ]
+            ws.append(headers)
+            
+            # Preenche os dados
+            for pokemon_id in sorted(self.pk_db.keys()):
+                pokemon = self.pk_db[pokemon_id]
+                row = [
+                    pokemon_id,
+                    pokemon['name'],
+                    ", ".join(pokemon['types']),
+                    pokemon['stats'].get('Hp', 0),
+                    pokemon['stats'].get('Attack', 0),
+                    pokemon['stats'].get('Defense', 0),
+                    pokemon['stats'].get('Special-Attack', 0),
+                    pokemon['stats'].get('Special-Defense', 0),
+                    pokemon['stats'].get('Speed', 0),
+                    pokemon['height'],
+                    pokemon['weight'],
+                    pokemon['catch_rate'],
+                    "Sim" if pokemon_id in self.favorites else "Não"
+                ]
+                ws.append(row)
+            
+            # Salva o arquivo com timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"pokedex_export_{timestamp}.xlsx"
+            wb.save(filename)
+            
+            messagebox.showinfo("Exportação Concluída", 
+                             f"Dados exportados com sucesso para:\n{filename}")
+        except Exception as e:
+            messagebox.showerror("Erro na Exportação", 
+                               f"Não foi possível exportar os dados:\n{str(e)}")
 
     def update_history_list(self):
         """Atualiza a lista de histórico na interface"""
